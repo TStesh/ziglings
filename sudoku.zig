@@ -2,6 +2,7 @@ const std = @import("std");
 const fs = std.fs;
 const os = std.os;
 const io = std.io;
+const fmt = std.fmt;
 const heap = std.heap;
 const print = std.debug.print;
 
@@ -21,8 +22,17 @@ fn fopen(dir: fs.Dir, path: []const u8) !fs.File {
 	};
 }
 
+fn grid_print(grid: [9][9]u8) void {
+    for (grid) |row| {
+        for(row) |cell| {
+            print("{d} |", .{cell});
+        }
+        print("\n", .{});
+    }
+}
+
 pub fn main() !void {
-	const path = "c:\\users\\alexa\\downloads\\sudo-in.txt";
+	const path = "c:\\codebase\\ziglings\\sudo-in.txt";
     const file = try fopen(fs.cwd(), path); 
 	defer file.close();
 	
@@ -36,18 +46,23 @@ pub fn main() !void {
 	
 	var fb = try fs.cwd().readFileAlloc(gpa, path, stat.size);
 	
-	const grid: [9][9]u8 = undefined;
-	const row_num: u8 = undefined;
-	const col_num: u8 = undefined;
+	var grid: [9][9]u8 = undefined;
+	var row_num: u8 = 0;
+	var col_num: u8 = 0;
 	
-	for (fb) |byte, n| {
-		print("{c}", .{byte});
-			const x = @parseToInt(
-			row_num = n / 9;
-			col_num = n % 9;
-			
-			grid[row_num][col_num] = 
+	for (fb) |byte| {
+        if (byte == 13) continue;
+        if (byte != 10) {
+            grid[row_num][col_num] = try fmt.charToDigit(byte, 10);
+            col_num += 1;
+            if (col_num > 9) @panic("error: # columns > 9 in the grid");
+        } else {
+            col_num = 0;
+            row_num += 1;
+            if (row_num > 9) @panic("error: # rows > 9 in the grid");
+        }
 	}
-	print("\n", .{});
+    
+    grid_print(grid);
 }
 
