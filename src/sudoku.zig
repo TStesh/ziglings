@@ -2,6 +2,7 @@ const std = @import("std");
 const fs = std.fs;
 const os = std.os;
 const io = std.io;
+const mem = std.mem;
 const fmt = std.fmt;
 const heap = std.heap;
 const print = std.debug.print;
@@ -60,7 +61,8 @@ fn grid_blk(grid: [9][9]u8, blk_num: usize) [9]u8 {
 const LinerError = error { RepeatDigit };
 
 fn liner(arr: [9]u8) LinerError![10]u8 {
-	var line = [_]u8 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	var line: [_]u8 = undefined;
+	for (0..11) |i| line[i] = 0;
 	for (arr) |cell| {
 		if (line[cell] == 0) {
 			line[cell] = 1;
@@ -71,10 +73,13 @@ fn liner(arr: [9]u8) LinerError![10]u8 {
 	return line;
 }
 
-fn row_free_cells(grid: [9][9]u8, row_num: usize) [10]u8 {
-	var line: [_]u8 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-	for (grid[row_num]) |cell| {
-		if (line[cell] == 0) {
+fn free_cells(alloc: mem.Allocator, arr: [9]u8) ?[9]u8 {
+	const grid_liner = liner(grid[row_num]) catch {
+		return null;
+	};
+	var 
+	for (arr) |cell| {
+		if (grid_liner[cell] == 0) {
 	}
 }
 
