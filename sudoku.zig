@@ -32,7 +32,7 @@ fn grid_print(grid: [9][9]u8) void {
 }
 
 pub fn main() !void {
-	const path = "c:\\codebase\\ziglings\\sudo-in.txt";
+	const path = "c:\\ziglings\\sudo-in.txt";
     const file = try fopen(fs.cwd(), path); 
 	defer file.close();
 	
