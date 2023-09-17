@@ -24,7 +24,7 @@ fn fopen(dir: fs.Dir, path: []const u8) !fs.File {
 	};
 }
 
-fn grid_print(grid: [9][9]u8) void {
+fn print_grid(grid: [9][9]u8) void {
     for (grid) |row| {
         for(row) |cell| print("{d} |", .{cell});
         print("\n", .{});
@@ -32,27 +32,16 @@ fn grid_print(grid: [9][9]u8) void {
 	print("\n", .{});
 }
 
-fn vec_print(arr: [9]u8) void {
-    for (arr) |cell| print("{d} |", .{cell});
-    print("\n\n", .{});
-	
-}
-
-fn grid_col(grid: [9][9]u8, col_index: usize) [9]u8 {
+fn get_col(grid: [9][9]u8, col_index: usize) [9]u8 {
 	var col: [9]u8 = undefined;
 	for (0..9) |i| col[i] = grid[i][col_index];
 	return col;
 }
 
-fn grid_blk(grid: [9][9]u8, blk_num: usize) [9]u8 {
+fn get_blk(grid: [9][9]u8, row: usize, col: usize) [9]u8 {
 	var blk: [9]u8 = undefined;
-	// 0 = [0][0], 1 = [0][3], 2 = [0][6]
-	// 3 = [3][0], 4 = [3][3], 5 = [3][6]
-	// 6 = [6][0], 7 = [6][3], 8 = [6][6]
-	// in general: r = blk_num - blk_num % 3, c = 3 * (blk_num % 3)
-	const x = blk_num % 3;
-	const sr = blk_num - x;
-	const sc = 3 * x;
+	const sr = row - row % 3;
+	const sc = col - col % 3;
 	var index: usize = 0;
 	for(sr..sr + 3) |r| {
 		for (sc..sc + 3) |c| {
@@ -63,36 +52,47 @@ fn grid_blk(grid: [9][9]u8, blk_num: usize) [9]u8 {
 	return blk;
 }
 
-const SudokuError = error { 
-	InvalidGrid,
-	RepeatDigit,
-	NotFreeCells
-};
-
-fn liner(arr: [9]u8) SudokuError![10]u8 {
-	var line: [10]u8 = undefined;
-	for (0..11) |i| line[i] = 0;
-	for (arr) |cell| {
-		if (line[cell] == 0) {
-			line[cell] = 1;
-		} else {
-			return SudokuError.RepeatDigit;
-		}
+fn inv(arr: [27]u8) [10]u8 {
+	var iarr = [_]u8 {0} ** 10;
+	for (arr) |item| {
+		if (item > 0 and iarr[item] == 0) 
+			iarr[item] = 1;
 	}
-	return line;
+	return iarr;
 }
 
-fn free_cells(alloc: mem.Allocator, arr: [9]u8) !ArrayList(u8) {
-	const grid_liner = try liner(arr);
+fn get_suit_digits(
+	alloc: mem.Allocator, 
+	grid: [9][9]u8, 
+	row: usize, 
+	col: usize
+) !ArrayList(u8) {
 	var v = ArrayList(u8).init(alloc);
-	for (1..11) |i| {
-		if (grid_liner[i] == 0) try v.append(@intCast(i));
+	const arr = inv(grid[row] ++ get_col(grid, col) ++ get_blk(grid, row, col));
+	for (1..10) |i| {
+		if (arr[i] == 0) 
+			try v.append(@intCast(i));
 	}
-	if (v.items.len == 0) return SudokuError.NotFreeCells;
 	return v;
 }
 
-fn get_init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
+fn get_null_cells(
+	alloc: mem.Allocator, 
+	grid: [9][9]u8
+) !ArrayList(u8) {
+	var v = ArrayList(u8).init(alloc);
+	for (grid, 0..) |row, i| {
+        for(row, 0..) |cell, j| {
+			if (cell == 0) 
+				try v.append(@intCast(9 * i + j));
+		}
+	}
+	return v;
+}
+
+
+
+fn init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
     const file = try fopen(fs.cwd(), path); 
 	defer file.close();
 	
@@ -101,7 +101,7 @@ fn get_init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
 	if (stat.size < 99) @panic("error: incorrect syntax");
 
 	var fb = try fs.cwd().readFileAlloc(alloc, path, stat.size);
-	
+
 	var grid: [9][9]u8 = undefined;
 	var row_num: u8 = 0;
 	var col_num: u8 = 0;
@@ -117,7 +117,6 @@ fn get_init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
             row_num += 1;
         }
 	}
-	
 	return grid;
 }
 
@@ -130,12 +129,11 @@ pub fn main() !void {
 	defer arena_instance.deinit();
 	const arena = arena_instance.allocator();
 
-	var grid = try get_init_grid(arena, "c:\\ziglings\\src\\sudo-in.txt");	
-    
-    grid_print(grid);
-	
-	const v = try free_cells(arena, grid_blk(grid, 5));
-	for (v) |item| print("{d} |", .{item});
-	print("\n", .{});
+	var grid = try init_grid(arena, "c:\\ziglings\\src\\sudo-in.txt");	
+    print_grid(grid);
+	const x = try get_suit_digits(arena, grid, 5, 7);
+	print("{any}\n\n", .{x.items});
+	const y = try get_null_cells(arena, grid);
+	print("{any}\n\n", .{y.items});
 }
 
