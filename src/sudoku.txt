@@ -1,0 +1,48 @@
+classic sudoku
+-----------------
+Доска 9х9, дано некоторое начальное размещение цифр от 1 до 9. Доска - это массив grid: [9][9]u8.  
+Критерий успеха: на доске осталась незаполненной одна клетка, и есть только одна допустимая цифра для заполнения ячейки
+
+A regular 9 x 9 grid is divided into 9 smaller blocks of 3 x 3, also known as nonets. The numbers from 1 to 9 can only occur once per nonet.
+Trying to guess the solution for each cell is not allowed under Sudoku rules. These are logical number puzzles.
+
+Пусть функция get_suit_digits для пустой ячейки {i, j} выдает список допустимых цифр.
+Цифра d называется допустимой, если ее нет в строке grid[i], в столбце get_col(grid, j), 3x3-блоке get_blk(grid, i, j)
+
+const Grid = struct {
+	grid: [9][9]u8,
+	
+	pub fn get_empty_cells(self: [9][9]u8) 
+};
+
+Алгоритм решения классического судоку очень прост:
+
+pub fn sudokuSolver(alloc: mem.Allocator, start_grid: [9][9]u8) ![9][9]u8 {:
+	var grid_set = vector(start_grid);
+	
+	while (grid_set.items.len > 0) {
+		var grid_set_new = vector();
+		grid_loop: for(grid_set.items) |grid| {
+			const empty_cells = grid.get_empty_cells();
+			for (empty_cells.items) |cell| {
+				const i: usize = cell / 9;
+				const j: usize = cell % 9;
+				const x = grid.get_suit_digits(i, j);
+				if (х.items.len == 0) continue :grid_loop;
+				if (empty_cells.items.len == 1 and х.items.len == 1) {
+					// Это решение!
+					grid[i][j] = x[0];
+					return grid;
+				}
+				for (x.items) |d| {
+					grid_copy = grid.clone();
+					grid_copy[i][j] = d;
+					grid_set_new.append(grid_copy);
+				}
+			}
+		}
+		grid_set = grid_set_new;
+		alloc.free(grid_set);
+	}
+	return null;
+}

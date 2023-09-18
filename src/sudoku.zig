@@ -76,7 +76,7 @@ fn get_suit_digits(
 	return v;
 }
 
-fn get_null_cells(
+fn get_empty_cells(
 	alloc: mem.Allocator, 
 	grid: [9][9]u8
 ) !ArrayList(u8) {
@@ -91,6 +91,66 @@ fn get_null_cells(
 }
 
 
+fn process_grid(
+	alloc: mem.Allocator, 
+	grid: [9][9]u8
+) !usize {
+	// fcell = 90 => success
+	// fcell = 100 => bad
+	var fcell: usize = undefined;
+	var m: u8 = 0;
+	var wg = grid;
+	
+	while (m <= 1) {
+		m = 10;
+		fcell = 100; // аналог -1, -1
+		const empty_cells = try get_empty_cells(alloc, wg);
+		if (empty_cells.items.len == 0) return 90; 
+		for (empty_cells.items) |cell| {
+			const i: usize = cell / 9;
+			const j: usize = cell % 9;
+			const x = try get_suit_digits(alloc, wg, i, j);
+			const x_len = x.items.len;
+			if (x_len == 0) return 100;
+			if (x_len == 1) wg[i][j] = x.items[0];
+			if (x_len < m) {
+				m = @intCast(x_len); 
+				fcell = cell;
+			}
+		}
+	}
+	return fcell;
+}
+
+pub fn sudokuSolver(alloc: mem.Allocator, start_grid: [9][9]u8) ![9][9]u8 {
+	var grid_set = ArrayList([9][9]u8).init(alloc);
+	try grid_set.append(start_grid);
+	
+	while (grid_set.items.len > 0) {
+		print("{d}\n", .{grid_set.items.len});
+		var grid_set_new = ArrayList([9][9]u8).init(alloc); 
+		grid_loop: for(grid_set.items) |grid| {
+			var fcell = try process_grid(alloc, grid);
+			switch (fcell) {
+				90 => return grid,
+				100 => continue :grid_loop,
+				else => {
+					const i: usize = fcell / 9;
+					const j: usize = fcell % 9;
+					const x = try get_suit_digits(alloc, grid, i, j);
+					for (x.items) |d| {
+						var grid_copy = grid;
+						grid_copy[i][j] = d;
+						try grid_set_new.append(grid_copy);
+					}
+				},
+			}
+		}
+		grid_set.deinit();
+		grid_set = grid_set_new;
+	}
+	return error.SolveNotFound;
+}
 
 fn init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
     const file = try fopen(fs.cwd(), path); 
@@ -131,9 +191,12 @@ pub fn main() !void {
 
 	var grid = try init_grid(arena, "c:\\ziglings\\src\\sudo-in.txt");	
     print_grid(grid);
-	const x = try get_suit_digits(arena, grid, 5, 7);
-	print("{any}\n\n", .{x.items});
-	const y = try get_null_cells(arena, grid);
-	print("{any}\n\n", .{y.items});
+	
+	// var cell = try process_grid(arena, grid);
+	// print("\ncell={}: i={}, j={}\n", .{cell, cell / 9, cell % 9});
+	
+	var x = try sudokuSolver(arena, grid);
+	print("\Solve:\n", .{});
+	print_grid(x);
 }
 
