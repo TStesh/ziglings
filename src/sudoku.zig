@@ -5,6 +5,7 @@ const io = std.io;
 const mem = std.mem;
 const fmt = std.fmt;
 const heap = std.heap;
+const prc = std.process;
 const ArrayList = std.ArrayList;
 const print = std.debug.print;
 
@@ -91,6 +92,7 @@ fn get_empty_cells(
 }
 
 
+<<<<<<< HEAD
 fn process_grid(
 	alloc: mem.Allocator, 
 	grid: [9][9]u8
@@ -123,28 +125,57 @@ fn process_grid(
 }
 
 pub fn sudokuSolver(alloc: mem.Allocator, start_grid: [9][9]u8) ![9][9]u8 {
+=======
+pub fn sudokuSolver(
+    alloc: mem.Allocator, 
+    start_grid: [9][9]u8
+) ![9][9]u8 {
+>>>>>>> 85a5350d400b1900367174af8828d35f0cff3250
 	var grid_set = ArrayList([9][9]u8).init(alloc);
 	try grid_set.append(start_grid);
 	
 	while (grid_set.items.len > 0) {
-		print("{d}\n", .{grid_set.items.len});
+		// print("{d}\n", .{grid_set.items.len});
 		var grid_set_new = ArrayList([9][9]u8).init(alloc); 
 		grid_loop: for(grid_set.items) |grid| {
-			var fcell = try process_grid(alloc, grid);
-			switch (fcell) {
-				90 => return grid,
-				100 => continue :grid_loop,
-				else => {
-					const i: usize = fcell / 9;
-					const j: usize = fcell % 9;
-					const x = try get_suit_digits(alloc, grid, i, j);
-					for (x.items) |d| {
-						var grid_copy = grid;
-						grid_copy[i][j] = d;
-						try grid_set_new.append(grid_copy);
-					}
-				},
-			}
+			
+            var fi: usize = undefined;
+            var fj: usize = undefined;
+            var min_suit_digits_len: usize = 10;
+            var min_suit_digits: ArrayList(u8) = undefined;
+            
+            const empty_cells = try get_empty_cells(alloc, grid);
+            const empty_cells_len = empty_cells.items.len;
+            
+            // ищем cell с минимальным кол-ом допустимых чисел
+            for (empty_cells.items) |cell| {
+                const i: usize = cell / 9;
+                const j: usize = cell % 9;
+                const suit_digits = try get_suit_digits(alloc, grid, i, j);
+                const suit_digits_len = suit_digits.items.len;
+                if (suit_digits_len == 0) continue :grid_loop;
+                if (suit_digits_len == 1) {
+                    if (empty_cells_len == 1) {
+                        var grid_copy = grid;
+                        grid_copy[i][j] = suit_digits.items[0];
+                        return grid_copy;
+                    } else {
+                        fi = i; fj = j;
+                        min_suit_digits = try suit_digits.clone();
+                        break;
+                    }
+                }
+                if (suit_digits_len < min_suit_digits_len) {
+                    min_suit_digits_len = suit_digits_len;
+                    min_suit_digits = try suit_digits.clone();
+                    fi = i; fj = j;
+                }
+            }    
+            for (min_suit_digits.items) |d| {
+                var grid_copy = grid;
+                grid_copy[fi][fj] = d;
+                try grid_set_new.append(grid_copy);
+            }
 		}
 		grid_set.deinit();
 		grid_set = grid_set_new;
@@ -152,7 +183,10 @@ pub fn sudokuSolver(alloc: mem.Allocator, start_grid: [9][9]u8) ![9][9]u8 {
 	return error.SolveNotFound;
 }
 
-fn init_grid(alloc: mem.Allocator, path: []const u8) ![9][9]u8 {
+fn init_grid(
+    alloc: mem.Allocator, 
+    path: []const u8
+) ![9][9]u8 {
     const file = try fopen(fs.cwd(), path); 
 	defer file.close();
 	
@@ -189,14 +223,42 @@ pub fn main() !void {
 	defer arena_instance.deinit();
 	const arena = arena_instance.allocator();
 
-	var grid = try init_grid(arena, "c:\\ziglings\\src\\sudo-in.txt");	
-    print_grid(grid);
-	
-	// var cell = try process_grid(arena, grid);
-	// print("\ncell={}: i={}, j={}\n", .{cell, cell / 9, cell % 9});
-	
-	var x = try sudokuSolver(arena, grid);
-	print("\Solve:\n", .{});
-	print_grid(x);
-}
+    // parse args
+    const args = try prc.argsAlloc(arena);
+    var path: []const u8 = "";
+    
+    switch (args.len) {
+        2 => { path = args[1]; },
+        else => {
+            const help =
+                \\usage: sudoku [file]
+                \\
+                \\  file is a normal .txt with start sudoku grid
+                \\
+                \\  Example sudoku.txt:
+                \\
+                \\  009748000
+                \\  700000000
+                \\  020109000
+                \\  007000240
+                \\  064010590
+                \\  098000300
+                \\  000803020
+                \\  000000006
+                \\  000275900
+            ;
+            print("{s}\n", .{help});
+        },
+    }
+    
+    if (path.len > 0) {
+        var start_grid = try init_grid(arena, path);	
+        var fill_grid = try sudokuSolver(arena, start_grid);
 
+        print("\nStart grid:\n", .{});
+        print_grid(start_grid);
+        
+        print("\nFilled grid:\n", .{});
+        print_grid(fill_grid);
+    }
+}
