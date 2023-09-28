@@ -103,7 +103,7 @@ fn process_grid(
 	
 	while (m <= 1) {
 		m = 10;
-		fcell = 100; // аналог -1, -1
+		fcell = 100;
 		const empty_cells = try get_empty_cells(alloc, wg);
 		if (empty_cells.items.len == 0) return 90; 
 		for (empty_cells.items) |cell| {
