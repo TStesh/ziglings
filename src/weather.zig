@@ -1,3 +1,26 @@
+// Прогноз погоды
+//
+// Используются два бесплатных эндпоинта:
+// 1. API GeoCoding для получения координат города
+// https://open-meteo.com/en/docs/geocoding-api 
+// Пример запроса:
+// https://geocoding-api.open-meteo.com/v1/search?name=moscow&count=1&language=en&format=json
+// Возвращает json, который меняет структуру в зависимости от города. 
+//
+// 2. API прогноза погоды для получения прогноза погоды для заданных координат.
+// https://open-meteo.com/en/docs
+// Пример запроса:
+// https://api.open-meteo.com/v1/forecast?
+// latitude=55.75222&
+// longitude=37.61556&
+// daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,
+// precipitation_hours,precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant&
+// timezone=Europe%2FMoscow&
+// forecast_days=5
+// 
+// Есть особенности Zig, которые делают его не слишком удобным для работы со строками.
+// По непонятным причинам print со спецификатором {u} не выводит символы Unicode.
+
 const std = @import("std");
 const http = std.http;
 const heap = std.heap;
@@ -8,27 +31,11 @@ const ascii = std.ascii;
 const process = std.process;
 const AutoHashMap = std.AutoHashMap;
 const json = std.json;
+const unicode = std.unicode;
 const debug = std.debug;
 const print = debug.print;
 
-const Value = struct { 
-	results: [1](struct {
-		id: u32,
-		name: []const u8,
-		latitude: f32,
-		longitude: f32,
-		elevation: f32,
-		feature_code: []const u8,
-		country_code: []const u8,
-        admin1_id: u32,
-        timezone: []const u8,
-        population: u32,
-        country_id: u32,
-        country: []const u8,
-        admin1: []const u8,
-	}),
-	generationtime_ms: f32,
-};
+const days: usize = 5;
 
 const Place = struct { 
 	latitude: f32, 
@@ -36,37 +43,16 @@ const Place = struct {
 };
 
 const Weather = struct {
-	latitude: f32,
-    longitude: f32,
-    generationtime_ms: f32,
-    utc_offset_seconds: u16,
-    timezone: []const u8,
-    timezone_abbreviation: []const u8,
-    elevation: u16,
-    daily_units: struct {
-        time: []u8,
-        weathercode: []u8,
-        temperature_2m_max: []u8,
-        temperature_2m_min: []u8,
-        apparent_temperature_max: []u8,
-        apparent_temperature_min: []u8,
-        precipitation_hours: []u8,
-        precipitation_probability_max: []u8,
-        windspeed_10m_max: []u8,
-        winddirection_10m_dominant: []u8,
-    },
-    daily: struct {
-        time: [5][10]u8,
-        weathercode: [5]u8,
-        temperature_2m_max: [5]f32,
-        temperature_2m_min: [5]f32,
-        apparent_temperature_max: [5]f32,
-        apparent_temperature_min: [5]f32,
-        precipitation_hours: [5]u8,
-        precipitation_probability_max: [5]u8,
-        windspeed_10m_max: [5]f32,
-        winddirection_10m_dominant: [5]u16,
-    }
+	time: [days][10]u8,
+	weathercode: [days]u8,
+	temperature_2m_max: [days]f32,
+	temperature_2m_min: [days]f32,
+	apparent_temperature_max: [days]f32,
+	apparent_temperature_min: [days]f32,
+	precipitation_hours: [days]u8,
+	precipitation_probability_max: [days]u8,
+	windspeed_10m_max: [days]f32,
+	winddirection_10m_dominant: [days]u16
 };
 
 fn setWeatherCode(malloc: mem.Allocator) !AutoHashMap(u8, []const u8) {
@@ -97,7 +83,7 @@ fn setWeatherCode(malloc: mem.Allocator) !AutoHashMap(u8, []const u8) {
 	try wc.put(82, "Violent Rain showers");
 	try wc.put(85, "Slight Snow showers");
 	try wc.put(86, "Heavy Snow showers");
-	try wc.put(95, "Slight (or moderate) Thunderstorm");
+	try wc.put(95, "Slight / moderate Thunderstorm");
 	try wc.put(96, "Thunderstorm with slight hail");
 	try wc.put(97, "Thunderstorm with heavy hail");
 	
@@ -138,14 +124,20 @@ fn getLatLong(
 		var bytes = try req.read(buf);
 		print("OK (get bytes: {d})\n", .{bytes});
 		print("Parse the place json...", .{});
-		const loc = json.parseFromSlice(Value, malloc, buf[0..bytes], .{}) catch |err| {
+		const loc = json.parseFromSlice(
+			struct { 
+				results: [1](struct {
+					latitude: f32,
+					longitude: f32,
+				})
+			}, 
+			malloc, 
+			buf[0..bytes], 
+			.{ .ignore_unknown_fields = true }
+		) catch |err| {
 			switch (err) {
 				error.MissingField => 
 					print("error: the city '{s}' was not found in the remote DB\n", .{city}),
-				error.UnknownField => {
-					print("error: the city '{s}' was found in the remote DB, ", .{city});
-					print("but its json structure is different from default\n", .{});
-				},
 				else => {}
 			}
 			return err;
@@ -200,11 +192,18 @@ fn getWeather(
 		print("OK (get bytes: {d})\n", .{bytes});
 		
 		print("Parse the weather json...", .{});
-		const loc = try json.parseFromSlice(Weather, malloc, buf[0..bytes], .{});
+		
+		const loc = try json.parseFromSlice(
+			struct { daily: Weather },
+			malloc, 
+			buf[0..bytes], 
+			.{ .ignore_unknown_fields = true }
+		);
 		defer loc.deinit();
+		
 		print("OK\n", .{});
 		
-		return loc.value;
+		return loc.value.daily;
 	}
 	
 	print("status: {any}\n", .{req.response.status});
@@ -222,22 +221,24 @@ fn parseDailyWeather(
 	
 	print("\n\nWeather:\n", .{});
 	
-	//     2023-09-29:         Mainly overcast          | 23.4 | 10.6 | 22.6  |  9.8  |  0   |  0   |  7.4    | 252 ( S)
-	print("-----------+---------------------------------+------+------+-------+-------+------+------+---------+---------\n", .{});
-	print("Date       |      Weather description        | T,°C | T,°C | AT,°C | AT,°C | PH,h | PP,% | WS,km/h | WD,° (D)\n", .{});
-	print("-----------+---------------------------------+------+------+-------+-------+------+------+---------+---------\n", .{});
+	const hdr = "Date       |      Weather description        | T,°C | T,°C | AT,°C | AT,°C | PH,h | PP,% | WS,km/h | WD,° (D)";
+	const row = "-----------+---------------------------------+------+------+-------+-------+------+------+---------+---------";
 	
-	for(0..5) |i| {		
-		print("{s} |", .{w.daily.time[i]});
-		print("{s:^32} |", .{wc.get(w.daily.weathercode[i]).?});
-		print("{d:>5.1} |", .{w.daily.temperature_2m_max[i]});
-		print("{d:>5.1} |", .{w.daily.temperature_2m_min[i]});
-		print("{d:>6.1} |", .{w.daily.apparent_temperature_max[i]});
-		print("{d:>6.1} |", .{w.daily.apparent_temperature_min[i]});
-		print("{d:>5.0} |", .{w.daily.precipitation_hours[i]});
-		print("{d:>5.0} |", .{w.daily.precipitation_probability_max[i]});
-		print("{d:>8.1} |", .{w.daily.windspeed_10m_max[i]});
-		var wd = w.daily.winddirection_10m_dominant[i];
+	print("{s}\n", .{row});
+	print("{s}\n", .{hdr});
+	print("{s}\n", .{row});
+	
+	for(0..days) |i| {		
+		print("{s} |", .{w.time[i]});
+		print("{s:^32} |", .{wc.get(w.weathercode[i]).?});
+		print("{d:>5.1} |", .{w.temperature_2m_max[i]});
+		print("{d:>5.1} |", .{w.temperature_2m_min[i]});
+		print("{d:>6.1} |", .{w.apparent_temperature_max[i]});
+		print("{d:>6.1} |", .{w.apparent_temperature_min[i]});
+		print("{d:>5.0} |", .{w.precipitation_hours[i]});
+		print("{d:>5.0} |", .{w.precipitation_probability_max[i]});
+		print("{d:>8.1} |", .{w.windspeed_10m_max[i]});
+		var wd = w.winddirection_10m_dominant[i];
 		print("{d:>4.0} (", .{wd});
 		
 		//   UV U UZ
@@ -256,7 +257,7 @@ fn parseDailyWeather(
 		
 		print("{s:>2})\n", .{wn});
 	}
-	print("-----------+---------------------------------+------+------+-------+-------+------+------+---------+---------\n", .{});
+	print("{s}\n", .{row});
 }
 
 pub fn main() !void {
