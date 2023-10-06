@@ -91,46 +91,10 @@ fn get_empty_cells(
 	return v;
 }
 
-
-<<<<<<< HEAD
-fn process_grid(
-	alloc: mem.Allocator, 
-	grid: [9][9]u8
-) !usize {
-	// fcell = 90 => success
-	// fcell = 100 => bad
-	var fcell: usize = undefined;
-	var m: u8 = 0;
-	var wg = grid;
-	
-	while (m <= 1) {
-		m = 10;
-		fcell = 100;
-		const empty_cells = try get_empty_cells(alloc, wg);
-		if (empty_cells.items.len == 0) return 90; 
-		for (empty_cells.items) |cell| {
-			const i: usize = cell / 9;
-			const j: usize = cell % 9;
-			const x = try get_suit_digits(alloc, wg, i, j);
-			const x_len = x.items.len;
-			if (x_len == 0) return 100;
-			if (x_len == 1) wg[i][j] = x.items[0];
-			if (x_len < m) {
-				m = @intCast(x_len); 
-				fcell = cell;
-			}
-		}
-	}
-	return fcell;
-}
-
-pub fn sudokuSolver(alloc: mem.Allocator, start_grid: [9][9]u8) ![9][9]u8 {
-=======
 pub fn sudokuSolver(
     alloc: mem.Allocator, 
     start_grid: [9][9]u8
 ) ![9][9]u8 {
->>>>>>> 85a5350d400b1900367174af8828d35f0cff3250
 	var grid_set = ArrayList([9][9]u8).init(alloc);
 	try grid_set.append(start_grid);
 	

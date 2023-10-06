@@ -90,30 +90,25 @@ fn setWeatherCode(malloc: mem.Allocator) !AutoHashMap(u8, []const u8) {
 	return wc;
 } 
 
-fn concat(malloc: mem.Allocator, a: []u8, b: []u8) ![]u8 {
-	var result = try malloc.alloc(u8, a.len + b.len);
-    mem.copy(u8, result, a);
-    mem.copy(u8, result[a.len..], b);
-    return result;
-}  
-
 fn getLatLong(
 	malloc: mem.Allocator, 
 	city: []u8
 ) anyerror!Place {
-	var path_pref = "https://geocoding-api.open-meteo.com/v1/search?name=".*;
-	var path_suff = "&count=1&language=en&format=json".*;
-	var path = try concat(malloc, &path_pref, city);
-	path = try concat(malloc, path, &path_suff);
-
+	var get_url = try std.fmt.allocPrint(
+		malloc,
+		"https://geocoding-api.open-meteo.com/v1/search?name={s}" ++
+		"&count=1&language=en&format=json",
+		.{city}
+	);
+		
 	print("Get the place json...", .{});
 	
-	var my_uri = try uri.parse(path);
-	
-    var client: http.Client = .{ .allocator = malloc };
+	var get_uri = try uri.parse(get_url);
+    
+	var client: http.Client = .{ .allocator = malloc };
     defer client.deinit();
-	
-    var req = try client.request(.GET, my_uri, .{ .allocator = malloc }, .{});
+    
+	var req = try client.request(.GET, get_uri, .{ .allocator = malloc }, .{});
     defer req.deinit();
 	
     try req.start();
@@ -163,24 +158,22 @@ fn getWeather(
 	malloc: mem.Allocator, 
 	p: Place
 ) anyerror!Weather {
-	var lat = try fmt.allocPrint(malloc, "{d:.5}", .{p.latitude});
-	var lng = try fmt.allocPrint(malloc, "{d:.5}", .{p.longitude});
-	var path_pref = "https://api.open-meteo.com/v1/forecast?latitude=".*;
-	var path_x = "&longitude=".*;
-	var path_suff = "&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_hours,precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant&timezone=Europe%2FMoscow&forecast_days=5".*;
-	var path = try concat(malloc, &path_pref, lat);
-	path = try concat(malloc, path, &path_x);
-	path = try concat(malloc, path, lng);
-	path = try concat(malloc, path, &path_suff);
-	
+	var get_url = try std.fmt.allocPrint(
+		malloc,
+		"https://api.open-meteo.com/v1/forecast?latitude={d:.5}&longitude={d:.5}" ++
+		"&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max," ++
+		"apparent_temperature_min,precipitation_hours,precipitation_probability_max," ++
+		"windspeed_10m_max,winddirection_10m_dominant&timezone=Europe%2FMoscow&forecast_days=5",
+		.{p.latitude, p.longitude});
+
 	print("Getting the weather json...", .{});
 	
-	var my_uri = try uri.parse(path);
+	var get_uri = try uri.parse(get_url);
 	
     var client: http.Client = .{ .allocator = malloc };
     defer client.deinit();
 
-    var req = try client.request(.GET, my_uri, .{ .allocator = malloc }, .{});
+    var req = try client.request(.GET, get_uri, .{ .allocator = malloc }, .{});
     defer req.deinit();
 	
     try req.start();
