@@ -5,10 +5,10 @@
 const std = @import("std");
 const heap = std.heap;
 const mem = std.mem;
-const sha = std.crypto.hash.Sha1;
-const arr_list = std.ArrayList;
 const http = std.http;
 const uri = std.Uri;
+const sha = std.crypto.hash.Sha1;
+const arr_list = std.ArrayList;
 const address = std.net.Address;
 const print = std.debug.print;
 
